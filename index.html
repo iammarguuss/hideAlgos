@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Steroid Crypto Demo</title>
+    <script src="main.js"></script>
+</head>
+<body>
+    <h1>Steroid Crypto Demo</h1>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Создаем экземпляр класса SteroidCrypto
+            const crypto = new SteroidCrypto();
+            console.log(crypto)
+
+            // Получаем SHA-256 хеш от строки 'Hello, World!' и выводим в консоль
+            const hash = await crypto.getSkey('Hello, World!');
+            console.log('SHA-256 хеш строки "Hello, World!":', hash);
+        });
+    </script>
+</body>
+</html>
