@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background:#212121">
 <head>
     <meta charset="UTF-8">
     <title>Steroid Crypto Demo</title>
@@ -13,9 +13,25 @@
             const crypto = new SteroidCrypto();
             console.log(crypto)
 
-            // Получаем SHA-256 хеш от строки 'Hello, World!' и выводим в консоль
+            // getSkey
             const hash = await crypto.getSkey('Hello, World!');
-            console.log('SHA-256 хеш строки "Hello, World!":', hash);
+            console.log('getSkey: ', hash);
+
+            //messageEnc
+            const message = "12345678901234567890123456789012";
+            const password = "секретныйКлюч";
+            // Шифрование сообщения
+            crypto.messageEnc(message, password, true) // true для шифрования
+                .then(encryptedMessage => {
+                    console.log("Зашифрованное сообщение:", encryptedMessage);
+                    // Расшифровка сообщения
+                    return crypto.messageEnc(encryptedMessage, password, false); // false для расшифровки
+                })
+                .then(decryptedMessage => {
+                    console.log("Расшифрованное сообщение:", decryptedMessage);
+                })
+                .catch(error => console.error("Ошибка:", error));
+
         });
     </script>
 </body>
