@@ -11,8 +11,21 @@
 
     messageEnc(message, password, bool)
         password - hex (as a standard)
-        if bool == true  =>     encrypt  message in RAW
-        if bool == false =>     decrypts message in BASE64
+        if bool == true  =>     encrypts message
+        if bool == false =>     decrypts message 
+
+        if success
+            {
+                s:1,
+                t:text,
+                v:0
+            }
+        else
+            {
+                s:0,
+                t:text,
+                v:0
+            }
 
     
     getPass
@@ -105,88 +118,90 @@ class SteroidCrypto {
         return parseInt(bits, 16);
     };
 
-    messageEnc = async (text, password, isEncrypt) => {
-        if (isEncrypt) {
-            // Шифрование
-            const salt = crypto.getRandomValues(new Uint8Array(32));
-            const iv = crypto.getRandomValues(new Uint8Array(12));
-
-            const keyMaterial = await crypto.subtle.importKey(
-                "raw",
-                new TextEncoder().encode(password),
-                { name: "PBKDF2" },
-                false,
-                ["deriveBits", "deriveKey"]
-            );
-            
-            const key = await crypto.subtle.deriveKey(
-                {
-                    name: "PBKDF2",
-                    salt: salt,
-                    iterations: 100,
-                    hash: "SHA-256"
-                },
-                keyMaterial,
-                { name: "AES-GCM", length: 256 },
-                false,
-                ["encrypt"]
-            );
-
-            const encrypted = await crypto.subtle.encrypt(
-                { name: "AES-GCM", iv: iv },
-                key,
-                new TextEncoder().encode(text)
-            );
-
-            const encryptedBuffer = new Uint8Array(encrypted);
-            const resultBuffer = new Uint8Array(salt.length + iv.length + encryptedBuffer.length);
-            resultBuffer.set(salt, 0);
-            resultBuffer.set(iv, salt.length);
-            resultBuffer.set(encryptedBuffer, salt.length + iv.length);
-
-            return btoa(String.fromCharCode(...resultBuffer));
-        } else {
-            // Расшифровка
-            const data = atob(text);
-            const dataBuffer = new Uint8Array(data.length);
-            for (let i = 0; i < data.length; i++) {
-                dataBuffer[i] = data.charCodeAt(i);
+    async messageEnc(text, password, isEncrypt, algo = 0) {
+        try {
+            if (isEncrypt) {
+                const salt = crypto.getRandomValues(new Uint8Array(32));
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const keyMaterial = await crypto.subtle.importKey(
+                    "raw",
+                    new TextEncoder().encode(password),
+                    { name: "PBKDF2" },
+                    false,
+                    ["deriveBits", "deriveKey"]
+                );
+                const key = await crypto.subtle.deriveKey(
+                    {
+                        name: "PBKDF2",
+                        salt: salt,
+                        iterations: 100,
+                        hash: "SHA-256"
+                    },
+                    keyMaterial,
+                    { name: "AES-GCM", length: 256 },
+                    false,
+                    ["encrypt"]
+                );
+                const encrypted = await crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: iv },
+                    key,
+                    new TextEncoder().encode(text)
+                );
+                const encryptedBuffer = new Uint8Array(encrypted);
+                const resultBuffer = new Uint8Array(salt.length + iv.length + encryptedBuffer.length);
+                resultBuffer.set(salt, 0);
+                resultBuffer.set(iv, salt.length);
+                resultBuffer.set(encryptedBuffer, salt.length + iv.length);
+                return {
+                    s: 1,
+                    t: resultBuffer, // возвращаем как Uint8Array
+                    v: algo
+                };
+            } else {
+                // Важно: 'text' должен быть Uint8Array при расшифровке
+                const salt = text.slice(0, 32);
+                const iv = text.slice(32, 44);
+                const encrypted = text.slice(44);
+                const keyMaterial = await crypto.subtle.importKey(
+                    "raw",
+                    new TextEncoder().encode(password),
+                    { name: "PBKDF2" },
+                    false,
+                    ["deriveBits", "deriveKey"]
+                );
+                const key = await crypto.subtle.deriveKey(
+                    {
+                        name: "PBKDF2",
+                        salt: salt,
+                        iterations: 100,
+                        hash: "SHA-256"
+                    },
+                    keyMaterial,
+                    { name: "AES-GCM", length: 256 },
+                    false,
+                    ["decrypt"]
+                );
+                const decrypted = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv },
+                    key,
+                    encrypted
+                );
+                return {
+                    s: 1,
+                    t: new TextDecoder().decode(decrypted),
+                    v: algo
+                };
             }
-
-            const salt = dataBuffer.slice(0, 32);
-            const iv = dataBuffer.slice(32, 44);
-            const encrypted = dataBuffer.slice(44);
-
-            const keyMaterial = await crypto.subtle.importKey(
-                "raw",
-                new TextEncoder().encode(password),
-                { name: "PBKDF2" },
-                false,
-                ["deriveBits", "deriveKey"]
-            );
-
-            const key = await crypto.subtle.deriveKey(
-                {
-                    name: "PBKDF2",
-                    salt: salt,
-                    iterations: 100,
-                    hash: "SHA-256"
-                },
-                keyMaterial,
-                { name: "AES-GCM", length: 256 },
-                false,
-                ["decrypt"]
-            );
-
-            const decrypted = await crypto.subtle.decrypt(
-                { name: "AES-GCM", iv: iv },
-                key,
-                encrypted
-            );
-
-            return new TextDecoder().decode(decrypted);
+        } catch (error) {
+            console.error("Ошибка при шифровании/расшифровке:", error);
+            return {
+                s: 0,
+                t: "error",
+                v: algo
+            };
         }
-    };
+    }
+
 
     async getPass(password) {
         // Хэширование пароля с использованием SHA-512 для создания соли

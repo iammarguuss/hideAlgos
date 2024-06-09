@@ -18,24 +18,22 @@
             console.log('getSkey: ', hash);
 
             //messageEnc
-            const message = "12345678901234567890123456789012";
+            const message = "Hello, World!";
             const password = "секретныйКлюч";
-            // Шифрование сообщения
-            crypto.messageEnc(message, password, true) // true для шифрования
-                .then(encryptedMessage => {
-                    console.log("Зашифрованное сообщение:", encryptedMessage);
-                    // Расшифровка сообщения
-                    return crypto.messageEnc(encryptedMessage, password, false); // false для расшифровки
-                })
-                .then(decryptedMessage => {
-                    console.log("Расшифрованное сообщение:", decryptedMessage);
-                })
-                .catch(error => console.error("Ошибка:", error));
 
-                //getPass
-                crypto.getPass(password)
-                    .then(hash => console.log("Хэш пароля:", hash))
-                    .catch(error => console.error("Ошибка:", error));
+            const encryptedResult = await crypto.messageEnc(message, password, true);
+            console.log("Encrypted result:", encryptedResult);
+
+            // Расшифровка сообщения, если шифрование было успешным
+            if (encryptedResult.s === 1) {
+                const decryptedResult = await crypto.messageEnc(encryptedResult.t, password, false);
+                console.log("Decrypted result:", decryptedResult);
+            }
+
+            //getPass
+            crypto.getPass(password)
+                .then(hash => console.log("Хэш пароля:", hash))
+                .catch(error => console.error("Ошибка:", error));
         });
     </script>
 </body>
