@@ -32,6 +32,10 @@
                 })
                 .catch(error => console.error("Ошибка:", error));
 
+                //getPass
+                crypto.getPass(password)
+                    .then(hash => console.log("Хэш пароля:", hash))
+                    .catch(error => console.error("Ошибка:", error));
         });
     </script>
 </body>

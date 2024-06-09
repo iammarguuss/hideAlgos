@@ -14,7 +14,15 @@
         if bool == true  =>     encrypt  message in RAW
         if bool == false =>     decrypts message in BASE64
 
-        
+    
+    getPass
+    gets hash from low entrophy password
+
+    getPass(password)
+        password - raw input => hex 256bit
+
+
+
 */
 class SteroidCrypto {
     constructor() {
@@ -179,5 +187,47 @@ class SteroidCrypto {
             return new TextDecoder().decode(decrypted);
         }
     };
+
+    async getPass(password) {
+        // Хэширование пароля с использованием SHA-512 для создания соли
+        const getSalt = async (password) => {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password);
+            const hashBuffer = await crypto.subtle.digest('SHA-512', data);
+            return new Uint8Array(hashBuffer);
+        };
+
+        const salt = await getSalt(password);
+        
+        // Импорт пароля как ключа для PBKDF2
+        const keyMaterial = await crypto.subtle.importKey(
+            "raw",
+            new TextEncoder().encode(password),
+            { name: "PBKDF2" },
+            false,
+            ["deriveBits", "deriveKey"]
+        );
+
+        // Производный ключ с использованием PBKDF2
+        const derivedKey = await crypto.subtle.deriveKey(
+            {
+                name: "PBKDF2",
+                salt: salt,
+                iterations: 1000000,
+                hash: 'SHA-512'
+            },
+            keyMaterial,
+            { name: "HMAC", hash: "SHA-512", length: 512 }, // Параметры не имеют большого значения для deriveBits
+            true,
+            ["verify"] // Права не имеют значения, так как ключ не будет использоваться для HMAC
+        );
+
+        // Получение битов ключа
+        const derivedBits = await crypto.subtle.exportKey("raw", derivedKey);
+        const keyBuffer = new Uint8Array(derivedBits);
+
+        // Конвертация битов ключа в hex строку
+        return Array.from(keyBuffer).map(byte => byte.toString(16).padStart(2, '0')).join('');
+    }
 
 }
