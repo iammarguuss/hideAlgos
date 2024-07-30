@@ -23,7 +23,7 @@
         else
             {
                 s:0,
-                t:text,
+                t:text, // error, just "error"
                 v:0
             }
 
