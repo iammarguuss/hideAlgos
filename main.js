@@ -41,7 +41,7 @@ class SteroidCrypto {
     constructor() {
     }
 
-    getSkey = async (password) => {
+    async getSkey (password) {
         // Локальные функции для хэширования
         const hash = async (algo, data) => {
             const encoder = new TextEncoder();
