@@ -246,3 +246,7 @@ class SteroidCrypto {
     }
 
 }
+
+(() => {
+    window.SteroidCrypto = SteroidCrypto;
+})()
