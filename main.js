@@ -375,6 +375,59 @@ async firstResponse(publicKeyBase64) {
     };
 }
 
+async secondResponse(encryptedMessageBase64, privateKeyBase64) {
+    const decryptWithPrivateKey = async (encryptedData, privateKey) => {
+        const keyBuffer = window.atob(privateKey);
+        const keyUint8Array = new Uint8Array(new ArrayBuffer(keyBuffer.length));
+        for (let i = 0; i < keyBuffer.length; i++) {
+            keyUint8Array[i] = keyBuffer.charCodeAt(i);
+        }
+
+        const importedKey = await crypto.subtle.importKey(
+            "pkcs8",
+            keyUint8Array,
+            { name: "RSA-OAEP", hash: {name: "SHA-256"} },
+            false,
+            ["decrypt"]
+        );
+
+        // Проверяем, что encryptedData — это строка Base64
+        if (typeof encryptedData !== 'string') {
+            throw new Error("Encrypted data must be a Base64 string");
+        }
+        const encryptedDataBuffer = window.atob(encryptedData);
+        const encryptedDataArray = new Uint8Array(new ArrayBuffer(encryptedDataBuffer.length));
+        for (let i = 0; i < encryptedDataBuffer.length; i++) {
+            encryptedDataArray[i] = encryptedDataBuffer.charCodeAt(i);
+        }
+
+        const decryptedData = await crypto.subtle.decrypt(
+            { name: "RSA-OAEP" },
+            importedKey,
+            encryptedDataArray
+        );
+
+        return new TextDecoder().decode(decryptedData);
+    };
+
+    try {
+        const decryptedText = await decryptWithPrivateKey(encryptedMessageBase64, privateKeyBase64);
+        return {
+            s: true,
+            e: null,
+            r: decryptedText
+        };
+    } catch (error) {
+        console.error("Ошибка при расшифровке:", error);
+        return {
+            s: false,
+            e: error.message,
+            r: null
+        };
+    }
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -44,6 +44,12 @@
             const publicKeyBase64 = keyPairResult.r.publicKey; // Используем сгенерированный ранее публичный ключ
             const firstResponseResult = await crypto.firstResponse(publicKeyBase64);
             console.log("First Response result:", firstResponseResult);
+
+            const encryptedMessageBase64 = firstResponseResult.r.encryptedMessage; // Обращаемся к полю с зашифрованным сообщением
+            const privateKeyBase64 = keyPairResult.r.privateKey;
+            const result = await crypto.secondResponse(encryptedMessageBase64, privateKeyBase64);
+            console.log("Decrypted message:", result);
+
         });
     </script>
     
