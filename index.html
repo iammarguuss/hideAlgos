@@ -12,29 +12,34 @@
             // Создаем экземпляр класса SteroidCrypto
             const crypto = new SteroidCrypto();
             console.log(crypto)
-
+    
             // getSkey
             const hash = await crypto.getSkey('Hello, World!');
             console.log('getSkey: ', hash);
-
+    
             //messageEnc
             const message = "Hello, World!";
             const password = "секретныйКлюч";
-
+    
             const encryptedResult = await crypto.messageEnc(message, password, true);
             console.log("Encrypted result:", encryptedResult);
-
+    
             // Расшифровка сообщения, если шифрование было успешным
             if (encryptedResult.s === 1) {
                 const decryptedResult = await crypto.messageEnc(encryptedResult.t, password, false);
                 console.log("Decrypted result:", decryptedResult);
             }
-
+    
             //getPass
             crypto.getPass(password)
                 .then(hash => console.log("Хэш пароля:", hash))
                 .catch(error => console.error("Ошибка:", error));
+    
+            // Генерация пары ключей RSA
+            const keyPairResult = await crypto.genPair(); // Можно указать другую битность, например genPair(2048)
+            console.log("Key Pair Generation Result:", keyPairResult);
         });
     </script>
+    
 </body>
 </html>

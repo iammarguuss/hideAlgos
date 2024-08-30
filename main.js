@@ -36,6 +36,18 @@
 
 
 
+    genPair 
+    Generates Key Pair for RSA
+    genPair(*bitKeySize) => 4k by default
+        {
+            s: true/false // as status if it was successfull
+            e: erroe message IF error exist
+            r: response { //if error => null
+                            publicKey: base 64 from the key
+                            privateKey: base 64 from the key
+                        }
+        }
+
 */
 class SteroidCrypto {
     constructor() {
@@ -245,8 +257,63 @@ class SteroidCrypto {
         return Array.from(keyBuffer).map(byte => byte.toString(16).padStart(2, '0')).join('');
     }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////CHANGE HERE////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////    
+
+// Добавляем метод genPair для генерации пары ключей RSA
+async genPair(keySize = 4096) {
+    const generateKeyPair = async (keySize) => {
+        // Генерация пары ключей с заданными параметрами
+        return await crypto.subtle.generateKey(
+            {
+                name: "RSA-OAEP",
+                modulusLength: keySize,       // Длина ключа в битах, по умолчанию 4096
+                publicExponent: new Uint8Array([1, 0, 1]),  // Обычно 65537, что равно 0x010001
+                hash: {name: "SHA-256"},      // Алгоритм хеширования
+            },
+            true,   // ключи должны быть экспортируемыми
+            ["encrypt", "decrypt"]  // возможности использования ключей
+        );
+    };
+
+    try {
+        const keyPair = await generateKeyPair(keySize);
+        // Экспорт ключей в формате специфичном для Web Crypto API
+        const publicKey = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+        const privateKey = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+
+        // Преобразование ключей в строковый формат для удобства отображения
+        const toBase64 = buffer => window.btoa(String.fromCharCode(...new Uint8Array(buffer)));
+
+        return {
+            s: true,
+            e: null,
+            r: {
+                publicKey: toBase64(publicKey),
+                privateKey: toBase64(privateKey)
+            }
+        };
+    } catch (error) {
+        console.error("Ошибка генерации ключей RSA:", error);
+        return {
+            s: false,
+            e: error.message,
+            r: null
+        };
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 }
 
 (() => {
     window.SteroidCrypto = SteroidCrypto;
 })()
+
+
+//TODO create redax for all 
