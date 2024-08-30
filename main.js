@@ -48,6 +48,19 @@
                         }
         }
 
+    firstResponse
+    Recives the public key and provieds responce to send back to the starter of the key exchange
+    firstResponse(publicKeyBase64)
+        {
+            s: true/false // as status if it was successfull
+            e: erroe message IF error exist
+            r: response { //if error => null
+                            encryptedMessage: base 64 
+                            signatureSha256: hex
+                            originalSignature: hex
+                        }
+        }
+
 */
 class SteroidCrypto {
     constructor() {
@@ -302,6 +315,64 @@ async genPair(keySize = 4096) {
             r: null
         };
     }
+}
+
+async firstResponse(publicKeyBase64) {
+    const generateSignature = () => {
+        const array = new Uint8Array(32); // 256 bits
+        crypto.getRandomValues(array);
+        return array;
+    };
+
+    const encryptWithPublicKey = async (data, publicKey) => {
+        // Преобразование Base64 закодированного ключа в ArrayBuffer
+        const keyBuffer = window.atob(publicKey);
+        const keyUint8Array = new Uint8Array(new ArrayBuffer(keyBuffer.length));
+        for (let i = 0; i < keyBuffer.length; i++) {
+            keyUint8Array[i] = keyBuffer.charCodeAt(i);
+        }
+    
+        const importedKey = await crypto.subtle.importKey(
+            "spki",
+            keyUint8Array, // Теперь передаем Uint8Array, а не массив чисел
+            { name: "RSA-OAEP", hash: {name: "SHA-256"} },
+            false,
+            ["encrypt"]
+        );
+        return crypto.subtle.encrypt(
+            { name: "RSA-OAEP" },
+            importedKey,
+            data
+        );
+    };    
+
+    // Создаём AES ключ и подпись
+    const signature = generateSignature();
+    const salt = generateSignature(); // Используем ту же функцию для соли
+
+    // Подготовка данных
+    const signatureAndSalt = new Uint8Array([...signature, ...salt]);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', signatureAndSalt);
+    const hashArray = new Uint8Array(hashBuffer);
+
+    // Конвертация хэша в hex
+    const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Шифрование данных
+    const encrypted = await encryptWithPublicKey(signatureAndSalt, publicKeyBase64);
+
+    // Конвертация зашифрованных данных в base64
+    const encryptedBase64 = window.btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+
+    return {
+        s: true,
+        e: null,
+        r: {
+            originalSignature: Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''),
+            signatureSha256: hashHex,
+            encryptedMessage: encryptedBase64
+        }
+    };
 }
 
 

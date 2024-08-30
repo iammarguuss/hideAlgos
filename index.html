@@ -35,9 +35,15 @@
                 .then(hash => console.log("Хэш пароля:", hash))
                 .catch(error => console.error("Ошибка:", error));
     
-            // Генерация пары ключей RSA
-            const keyPairResult = await crypto.genPair(); // Можно указать другую битность, например genPair(2048)
+           // Генерация пары ключей RSA
+           const keyPairResult = await crypto.genPair(); // Можно указать другую битность, например genPair(2048)
             console.log("Key Pair Generation Result:", keyPairResult);
+    
+            // FirstResponse
+            // Предполагается, что публичный ключ уже получен и проверен
+            const publicKeyBase64 = keyPairResult.r.publicKey; // Используем сгенерированный ранее публичный ключ
+            const firstResponseResult = await crypto.firstResponse(publicKeyBase64);
+            console.log("First Response result:", firstResponseResult);
         });
     </script>
     
