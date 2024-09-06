@@ -39,13 +39,20 @@
            const keyPairResult = await crypto.genPair(); // Можно указать другую битность, например genPair(2048)
             console.log("Key Pair Generation Result:", keyPairResult);
     
-            if (keyPairResult.s) {
-                // Использование публичного ключа и hex строки для CreatePackage
-                const publicKeyBase64 = keyPairResult.r.publicKey;
-                const hexString = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'; // Пример hex строки
-                const packageResult = await crypto.createPackage(publicKeyBase64, hexString);
-                console.log("Create Package Result:", packageResult);
-            }
+            // server emulation
+            const hexString = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'; // Пример hex строки
+            const hexStringSHA = '9fac355710bb2183bf0cdf2c15c151b1c81d923a5586e7aab065b5fb6ebf889f'; // Пример hex строки
+
+
+            // get the package ready
+            // Использование публичного ключа и hex строки для CreatePackage
+            const publicKeyBase64 = keyPairResult.r.publicKey;
+            const packageResult = await crypto.createPackage(publicKeyBase64, hexStringSHA);
+            console.log("Create Package Result:", packageResult);
+
+            //validation if everything works fine            
+            const validationResult = await crypto.prevalidator(packageResult.r, hexString);
+            console.log("Validation Result:", validationResult);
 
         });
     </script>

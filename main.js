@@ -49,19 +49,31 @@
         }
 
 
-    TODO DELETE
-    firstResponse
-    Recives the public key and provieds responce to send back to the starter of the key exchange
-    firstResponse(publicKeyBase64)
+    createPackage
+    Creates ready to send package from the sender
+    createPackage(publicKeyBase64, hexString (signature from server in hex))
         {
-            s: true/false // as status if it was successfull
-            e: erroe message IF error exist
-            r: response { //if error => null
-                            encryptedMessage: base 64 
-                            signatureSha256: hex
-                            originalSignature: hex
-                        }
+            s: true,                            //status true/false
+            e: 0,                               // error message if exits
+            salt: salt,                         // hex string -> have to be saved localy for later validation
+            r: {                                // responce body (fully ready to be sent)
+                publicKey: publicKeyBase64,     // public key in base64
+                originSha: hexString,           // hexString from sever
+                signature: signature            // signature
+            }
         }
+
+    prevalidator
+    prevalidator(createPackage.r, inputString) 
+    inputString - hex 64 char original string from the server
+    Checks if all the data is correct when recived
+    {
+        s: true,                            //status true/false
+        e: 0,                               // error message if exits
+        r: createPackage.r
+    }
+
+
 
 */
 class SteroidCrypto {
@@ -348,6 +360,63 @@ async createPackage(publicKeyBase64, hexString) {
             s: false,
             e: error.message,
             salt: null,
+            r: null
+        };
+    }
+}
+
+async prevalidator(receivedObj, inputString) {
+    try {
+        // Проверка длины входной строки (она должна быть равна длине hex SHA-256 хеша)
+        if (inputString.length !== 64) {
+            throw new Error("Некорректная длина входной строки");
+        }
+
+        // Регулярное выражение для проверки, что строка является корректной hex-строкой
+        const hexRegex = /^[a-fA-F0-9]+$/;
+        if (!hexRegex.test(inputString)) {
+            throw new Error("Входная строка содержит недопустимые символы");
+        }
+
+        // Валидация publicKey с использованием регулярного выражения для base64
+        const base64Regex = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+        if (!base64Regex.test(receivedObj.publicKey)) {
+            throw new Error("Публичный ключ имеет некорректный формат");
+        }
+
+        // Валидация signature, должен быть hex-строкой
+        const signatureHexRegex = /^[a-fA-F0-9]+$/;
+        if (!signatureHexRegex.test(receivedObj.signature)) {
+            throw new Error("Подпись имеет некорректный формат");
+        }
+
+        // Вычисление SHA-256 хеша для входной строки
+        const encoder = new TextEncoder();
+        const dataToHash = encoder.encode(inputString);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', dataToHash);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const calculatedSha = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // Сравнение полученного хеша с originSha из объекта
+        if (calculatedSha !== receivedObj.originSha) {
+            throw new Error("Хеш входной строки не совпадает с ожидаемым originSha");
+        }
+
+        // Проверка, что все необходимые поля присутствуют в receivedObj
+        if (!receivedObj.publicKey || !receivedObj.signature) {
+            throw new Error("Объект не содержит всех необходимых полей");
+        }
+
+        // Все проверки пройдены
+        return {
+            s: true,
+            e: 0,
+            r: receivedObj
+        };
+    } catch (error) {
+        return {
+            s: false,
+            e: error.message,
             r: null
         };
     }
