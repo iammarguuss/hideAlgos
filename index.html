@@ -39,16 +39,13 @@
            const keyPairResult = await crypto.genPair(); // Можно указать другую битность, например genPair(2048)
             console.log("Key Pair Generation Result:", keyPairResult);
     
-            // FirstResponse
-            // Предполагается, что публичный ключ уже получен и проверен
-            const publicKeyBase64 = keyPairResult.r.publicKey; // Используем сгенерированный ранее публичный ключ
-            const firstResponseResult = await crypto.firstResponse(publicKeyBase64);
-            console.log("First Response result:", firstResponseResult);
-
-            const encryptedMessageBase64 = firstResponseResult.r.encryptedMessage; // Обращаемся к полю с зашифрованным сообщением
-            const privateKeyBase64 = keyPairResult.r.privateKey;
-            const result = await crypto.secondResponse(encryptedMessageBase64, privateKeyBase64);
-            console.log("Decrypted message:", result);
+            if (keyPairResult.s) {
+                // Использование публичного ключа и hex строки для CreatePackage
+                const publicKeyBase64 = keyPairResult.r.publicKey;
+                const hexString = 'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890'; // Пример hex строки
+                const packageResult = await crypto.createPackage(publicKeyBase64, hexString);
+                console.log("Create Package Result:", packageResult);
+            }
 
         });
     </script>

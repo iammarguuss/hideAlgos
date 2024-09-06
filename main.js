@@ -48,6 +48,8 @@
                         }
         }
 
+
+    TODO DELETE
     firstResponse
     Recives the public key and provieds responce to send back to the starter of the key exchange
     firstResponse(publicKeyBase64)
@@ -317,115 +319,41 @@ async genPair(keySize = 4096) {
     }
 }
 
-async firstResponse(publicKeyBase64) {
-    const generateSignature = () => {
-        const array = new Uint8Array(32); // 256 bits
-        crypto.getRandomValues(array);
-        return array;
-    };
-
-    const encryptWithPublicKey = async (data, publicKey) => {
-        // Преобразование Base64 закодированного ключа в ArrayBuffer
-        const keyBuffer = window.atob(publicKey);
-        const keyUint8Array = new Uint8Array(new ArrayBuffer(keyBuffer.length));
-        for (let i = 0; i < keyBuffer.length; i++) {
-            keyUint8Array[i] = keyBuffer.charCodeAt(i);
-        }
-    
-        const importedKey = await crypto.subtle.importKey(
-            "spki",
-            keyUint8Array, // Теперь передаем Uint8Array, а не массив чисел
-            { name: "RSA-OAEP", hash: {name: "SHA-256"} },
-            false,
-            ["encrypt"]
-        );
-        return crypto.subtle.encrypt(
-            { name: "RSA-OAEP" },
-            importedKey,
-            data
-        );
-    };    
-
-    // Создаём AES ключ и подпись
-    const signature = generateSignature();
-    const salt = generateSignature(); // Используем ту же функцию для соли
-
-    // Подготовка данных
-    const signatureAndSalt = new Uint8Array([...signature, ...salt]);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', signatureAndSalt);
-    const hashArray = new Uint8Array(hashBuffer);
-
-    // Конвертация хэша в hex
-    const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
-
-    // Шифрование данных
-    const encrypted = await encryptWithPublicKey(signatureAndSalt, publicKeyBase64);
-
-    // Конвертация зашифрованных данных в base64
-    const encryptedBase64 = window.btoa(String.fromCharCode(...new Uint8Array(encrypted)));
-
-    return {
-        s: true,
-        e: null,
-        r: {
-            originalSignature: Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''),
-            signatureSha256: hashHex,
-            encryptedMessage: encryptedBase64
-        }
-    };
-}
-
-async secondResponse(encryptedMessageBase64, privateKeyBase64) {
-    const decryptWithPrivateKey = async (encryptedData, privateKey) => {
-        const keyBuffer = window.atob(privateKey);
-        const keyUint8Array = new Uint8Array(new ArrayBuffer(keyBuffer.length));
-        for (let i = 0; i < keyBuffer.length; i++) {
-            keyUint8Array[i] = keyBuffer.charCodeAt(i);
-        }
-
-        const importedKey = await crypto.subtle.importKey(
-            "pkcs8",
-            keyUint8Array,
-            { name: "RSA-OAEP", hash: {name: "SHA-256"} },
-            false,
-            ["decrypt"]
-        );
-
-        // Проверяем, что encryptedData — это строка Base64
-        if (typeof encryptedData !== 'string') {
-            throw new Error("Encrypted data must be a Base64 string");
-        }
-        const encryptedDataBuffer = window.atob(encryptedData);
-        const encryptedDataArray = new Uint8Array(new ArrayBuffer(encryptedDataBuffer.length));
-        for (let i = 0; i < encryptedDataBuffer.length; i++) {
-            encryptedDataArray[i] = encryptedDataBuffer.charCodeAt(i);
-        }
-
-        const decryptedData = await crypto.subtle.decrypt(
-            { name: "RSA-OAEP" },
-            importedKey,
-            encryptedDataArray
-        );
-
-        return new TextDecoder().decode(decryptedData);
-    };
-
+async createPackage(publicKeyBase64, hexString) {
     try {
-        const decryptedText = await decryptWithPrivateKey(encryptedMessageBase64, privateKeyBase64);
+        // Генерация случайной соли
+        const saltBytes = crypto.getRandomValues(new Uint8Array(32)); // 32 байта => 64 символа в hex
+        const salt = Array.from(saltBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // Создание SHA-512 хеша
+        const encoder = new TextEncoder();
+        const dataToHash = encoder.encode(publicKeyBase64 + hexString + salt);
+        const hashBuffer = await crypto.subtle.digest('SHA-512', dataToHash);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // Формирование ответа
         return {
             s: true,
-            e: null,
-            r: decryptedText
+            e: 0,
+            salt: salt,
+            r: {
+                publicKey: publicKeyBase64,
+                originSha: hexString,
+                signature: signature
+            }
         };
     } catch (error) {
-        console.error("Ошибка при расшифровке:", error);
         return {
             s: false,
             e: error.message,
+            salt: null,
             r: null
         };
     }
 }
+
+
 
 
 
