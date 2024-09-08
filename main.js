@@ -73,7 +73,7 @@
         r: createPackage.r
     }
 
-    responseResult(prevalidator.r, inputstring)
+    responceRSA(prevalidator.r, inputstring)
     inputString - hex 64 char original string from the server
     Prepares responce
     {
@@ -86,7 +86,28 @@
         aes:                                // aes string for encryption => MUST BE SAVED LOCALY
     }
 
+    encryptData - decrypts message, checks signatures and make the packege to send it back.
+    encryptData(
+        obj,                        {responceRSA().r}
+        inputString,                original string from server
+        signatureSha256,            sha string from the server (should be from localstorage)
+        privateKeyBase64,           private key in base64
+        publicKeyBase64,            publick key in base64
+        password,                   object with password from change settings
+        salt                        salt from createPackage.salt
+    )
 
+    return {
+        s: true/false                       status
+        e: null                             error null or error message in case signatures are not the same
+        aes: hex aes                        aes the change protocol (just in case)
+        r: {
+            password: base64 string         json->string->aes enc (password from change)
+            salt: base64 string             just encrypted salt with the same key
+        }
+    }
+
+    
 */
 class SteroidCrypto {
     constructor() {
@@ -443,7 +464,7 @@ async responceRSA(validatedObj, inputString) {
         // Импорт публичного ключа RSA
         const publicKey = await crypto.subtle.importKey(
             "spki",
-            this.base64ToArrayBuffer(validatedObj.r.publicKey),
+            this.base64ToArrayBuffer(validatedObj.publicKey),
             { name: "RSA-OAEP", hash: { name: "SHA-256" } },
             false,
             ["encrypt"]
@@ -461,7 +482,7 @@ async responceRSA(validatedObj, inputString) {
 
         // Вычисление SHA-512
         const encoder = new TextEncoder();
-        const dataToHash = encoder.encode(validatedObj.r.publicKey + aesKeyHex + inputString);
+        const dataToHash = encoder.encode(validatedObj.publicKey + aesKeyHex + inputString);
         const hashBuffer = await crypto.subtle.digest('SHA-512', dataToHash);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         const sha512 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
@@ -474,6 +495,62 @@ async responceRSA(validatedObj, inputString) {
             r: {
                 sha512: sha512,
                 encryptedAesString: encryptedAesKeyBase64
+            }
+        };
+    } catch (error) {
+        return {
+            s: false,
+            e: error.message,
+            aes: null,
+            r: null
+        };
+    }
+}
+
+async encryptData(obj, inputString, signatureSha256, privateKeyBase64, publicKeyBase64, password, salt) {
+
+    try {
+        // Проверка SHA-256
+        const inputSha256 = await this.sha256(inputString);
+        if (inputSha256 !== signatureSha256) {
+            throw new Error("Ошибка подписи 1");
+        }
+
+        // Расшифровка AES ключа
+        const privateKey = await crypto.subtle.importKey(
+            "pkcs8",
+            this.base64ToArrayBuffer(privateKeyBase64),
+            { name: "RSA-OAEP", hash: { name: "SHA-256" } },
+            false,
+            ["decrypt"]
+        );
+
+        const encryptedAesKeyBuffer = this.base64ToArrayBuffer(obj.encryptedAesString);
+        const decryptedAesKey = await crypto.subtle.decrypt(
+            { name: "RSA-OAEP" },
+            privateKey,
+            encryptedAesKeyBuffer
+        );
+        const aesKeyHex = this.bufferToHex(decryptedAesKey);
+
+        // Проверка SHA-512
+        const computedSha512 = await this.sha512(publicKeyBase64 + aesKeyHex + inputString);
+        if (computedSha512 !== obj.sha512) {
+            throw new Error("Ошибка подписи 2");
+        }
+
+        // Шифрование данных с использованием AES
+        const encryptedPassword = await this.encryptAes256(password, decryptedAesKey);
+        const encryptedSalt = await this.encryptAes256(salt, decryptedAesKey);
+
+        // Возврат результата
+        return {
+            s: true,
+            e: null,
+            aes: aesKeyHex,
+            r: {
+                password: encryptedPassword,
+                salt: encryptedSalt
             }
         };
     } catch (error) {
@@ -511,6 +588,42 @@ async responceRSA(validatedObj, inputString) {
             binary += String.fromCharCode(bytes[i]);
         }
         return window.btoa(binary);
+    }
+
+    // Вспомогательные методы для SHA-256, SHA-512, AES-256 шифрования, конвертации ArrayBuffer в Hex
+    async sha256(data) {
+        const encoder = new TextEncoder();
+        const buffer = await crypto.subtle.digest('SHA-256', encoder.encode(data));
+        return this.bufferToHex(buffer);
+    }
+
+    async sha512(data) {
+        const encoder = new TextEncoder();
+        const buffer = await crypto.subtle.digest('SHA-512', encoder.encode(data));
+        return this.bufferToHex(buffer);
+    }
+
+    async encryptAes256(data, keyBuffer) {
+        const key = await crypto.subtle.importKey(
+            "raw",
+            keyBuffer,
+            { name: "AES-GCM", length: 256 },
+            false,
+            ["encrypt"]
+        );
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const encryptedData = await crypto.subtle.encrypt(
+            { name: "AES-GCM", iv },
+            key,
+            new TextEncoder().encode(data)
+        );
+        return this.arrayBufferToBase64(encryptedData);
+    }
+
+    bufferToHex(buffer) {
+        return Array.from(new Uint8Array(buffer))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
     }
 
 }
