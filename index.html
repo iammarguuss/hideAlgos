@@ -54,6 +54,11 @@
             const validationResult = await crypto.prevalidator(packageResult.r, hexString);
             console.log("Validation Result:", validationResult);
 
+
+            // Запуск метода responceRSA
+            const responseResult = await crypto.responceRSA(validationResult, hexString);
+            console.log("Response RSA Result:", responseResult);
+
         });
     </script>
     

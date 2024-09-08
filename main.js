@@ -73,6 +73,18 @@
         r: createPackage.r
     }
 
+    responseResult(prevalidator.r, inputstring)
+    inputString - hex 64 char original string from the server
+    Prepares responce
+    {
+        s: true,                            //status true/false
+        e: 0,                               // error message if exits
+        r: {
+            sha512:                         // signature in hex
+            encryptedAesString:             // aes string, encrypted via public key and ready to be sent
+        }
+        aes:                                // aes string for encryption => MUST BE SAVED LOCALY
+    }
 
 
 */
@@ -422,13 +434,84 @@ async prevalidator(receivedObj, inputString) {
     }
 }
 
+async responceRSA(validatedObj, inputString) {
+    try {
+        // Генерация случайного AES ключа (256 бит)
+        const aesKey = crypto.getRandomValues(new Uint8Array(32));
+        const aesKeyHex = Array.from(aesKey).map(b => b.toString(16).padStart(2, '0')).join('');
 
+        // Импорт публичного ключа RSA
+        const publicKey = await crypto.subtle.importKey(
+            "spki",
+            this.base64ToArrayBuffer(validatedObj.r.publicKey),
+            { name: "RSA-OAEP", hash: { name: "SHA-256" } },
+            false,
+            ["encrypt"]
+        );
+
+        // Шифрование AES ключа
+        const encryptedAesKey = await crypto.subtle.encrypt(
+            { name: "RSA-OAEP" },
+            publicKey,
+            aesKey
+        );
+
+        // Конвертация зашифрованного ключа в Base64
+        const encryptedAesKeyBase64 = this.arrayBufferToBase64(encryptedAesKey);
+
+        // Вычисление SHA-512
+        const encoder = new TextEncoder();
+        const dataToHash = encoder.encode(validatedObj.r.publicKey + aesKeyHex + inputString);
+        const hashBuffer = await crypto.subtle.digest('SHA-512', dataToHash);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const sha512 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // Формирование и возврат результата
+        return {
+            s: true,
+            e: null,
+            aes: aesKeyHex,
+            r: {
+                sha512: sha512,
+                encryptedAesString: encryptedAesKeyBase64
+            }
+        };
+    } catch (error) {
+        return {
+            s: false,
+            e: error.message,
+            aes: null,
+            r: null
+        };
+    }
+}
 
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    // Вспомогательные функции для конвертации
+    base64ToArrayBuffer(base64) {
+        const binary_string = window.atob(base64);
+        const len = binary_string.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binary_string.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
 
 }
 
