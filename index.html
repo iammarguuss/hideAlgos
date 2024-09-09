@@ -70,6 +70,10 @@
             const encryptionResult = await crypto.encryptData(responseResult.r, hexString, hexStringSHA, keyPairResult.r.privateKey, keyPairResult.r.publicKey, ChangePassword, packageResult.salt);
             console.log("Encryption Result:", encryptionResult);
 
+            // Запуск метода finalAccepter
+            const result = await crypto.finalAccepter(encryptionResult.r, packageResult.r.signature, keyPairResult.r.publicKey, hexStringSHA, responseResult.aes);
+            console.log("Final Accepter Result:", result);
+
         });
     </script>
     

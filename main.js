@@ -107,7 +107,29 @@
         }
     }
 
-    
+    finalAccepter
+    very last method from the reciver side before chat
+    finalAccepter(
+        packet,             // encryptionResult.r 
+        signature,          // signature from the first method recived from sender
+        publicKeyBase64,    // just public key
+        hexString,          // sha256 from server, generated in the begininging
+        aesKeyHex           // responseResult.aes => it should have been saved localyy before
+    )
+
+    return {
+        s: true/false                       status
+        e: null                             error null or error message in case signatures are not the same
+        r: {
+            finalKey: {},                   the password with all the settings from change, recived
+                                            SHOULD BE SAVED LOCALY and to to chat with it
+            signature:                      hex. should send to sender before clothing connection.
+                                            the only one, that should be sent back and its over
+        }
+    }
+
+
+
 */
 class SteroidCrypto {
     constructor() {
@@ -540,7 +562,7 @@ async encryptData(obj, inputString, signatureSha256, privateKeyBase64, publicKey
         }
 
         // Шифрование данных с использованием AES
-        const encryptedPassword = await this.encryptAes256(password, decryptedAesKey);
+        const encryptedPassword = await this.encryptAes256(JSON.stringify(password), decryptedAesKey);
         const encryptedSalt = await this.encryptAes256(salt, decryptedAesKey);
 
         // Возврат результата
@@ -563,6 +585,49 @@ async encryptData(obj, inputString, signatureSha256, privateKeyBase64, publicKey
     }
 }
 
+
+async finalAccepter(packet, signature, publicKeyBase64, hexString, aesKeyHex) {
+    try {
+        // Расшифровываем соль
+        const decryptedSaltBase64 = packet.salt;
+        const decryptedSalt = await this.decryptAes256(decryptedSaltBase64, aesKeyHex);
+
+        // Вычисляем SHA-512 для проверки подписи
+        const dataForSignature = publicKeyBase64 + hexString + decryptedSalt;
+        const calculatedSignature = await this.sha512(dataForSignature);
+
+        // Проверяем соответствие подписи
+        if (calculatedSignature !== signature) {
+            throw new Error("Подпись не соответствует расчетной подписи");
+        }
+
+        // Расшифровываем пароль
+        const decryptedPasswordBase64 = packet.password;
+        console.log("Encrypted Password Base64:", decryptedPasswordBase64); // Посмотреть, что возвращается после шифрования
+        const finalKey = await this.decryptAes256(decryptedPasswordBase64, aesKeyHex);
+        console.log("Decrypted Password Object:", finalKey); // Посмотреть, что возвращается после расшифровки
+
+
+        // Вычисляем SHA-256 от расшифрованной соли
+        const signatureFromDecryptedSalt = await this.sha256(decryptedSalt);
+
+        // Формируем и возвращаем результат
+        return {
+            s: true,
+            e: null,
+            r: {
+                finalKey: JSON.parse(finalKey),
+                signature: signatureFromDecryptedSalt
+            }
+        };
+    } catch (error) {
+        return {
+            s: false,
+            e: error.message,
+            r: null
+        };
+    }
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -617,7 +682,11 @@ async encryptData(obj, inputString, signatureSha256, privateKeyBase64, publicKey
             key,
             new TextEncoder().encode(data)
         );
-        return this.arrayBufferToBase64(encryptedData);
+        // Объединение зашифрованных данных и IV для передачи
+        const encryptedDataWithIv = new Uint8Array(encryptedData.byteLength + iv.length);
+        encryptedDataWithIv.set(new Uint8Array(encryptedData), 0);
+        encryptedDataWithIv.set(iv, encryptedData.byteLength);
+        return this.arrayBufferToBase64(encryptedDataWithIv.buffer);
     }
 
     bufferToHex(buffer) {
@@ -626,11 +695,37 @@ async encryptData(obj, inputString, signatureSha256, privateKeyBase64, publicKey
             .join('');
     }
 
+    
+    async decryptAes256(encryptedDataWithIvBase64, aesKeyHex) {
+        const keyBuffer = this.hexToBuffer(aesKeyHex);
+        const key = await crypto.subtle.importKey(
+            "raw",
+            keyBuffer,
+            { name: "AES-GCM", length: 256 },
+            false,
+            ["decrypt"]
+        );
+        const encryptedDataWithIv = this.base64ToArrayBuffer(encryptedDataWithIvBase64);
+        const iv = new Uint8Array(encryptedDataWithIv, encryptedDataWithIv.byteLength - 12, 12); // Извлечение IV из конца
+        const data = new Uint8Array(encryptedDataWithIv, 0, encryptedDataWithIv.byteLength - 12); // Извлечение зашифрованных данных
+        const decrypted = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv },
+            key,
+            data
+        );
+        return new TextDecoder().decode(decrypted);
+    }
+    
+    // Конвертация hex в ArrayBuffer
+    hexToBuffer(hexString) {
+        const bytes = new Uint8Array(Math.ceil(hexString.length / 2));
+        for (let i = 0, j = 0; i < hexString.length; i += 2, j++) {
+            bytes[j] = parseInt(hexString.substr(i, 2), 16);
+        }
+        return bytes.buffer;
+    }
 }
 
 (() => {
     window.SteroidCrypto = SteroidCrypto;
 })()
-
-
-//TODO create redax for all 
