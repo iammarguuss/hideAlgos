@@ -128,7 +128,14 @@
         }
     }
 
-
+    lastCheck - last solt validation
+    (signature,     - finalAccepter.r.signature
+    signature_old)  - old salt from local storage
+    return {
+        s: true/false - status
+        e: error message or null
+        r: true or false -> if everything works and we can go to chat
+    }
 
 */
 class SteroidCrypto {
@@ -628,6 +635,29 @@ async finalAccepter(packet, signature, publicKeyBase64, hexString, aesKeyHex) {
         };
     }
 }
+
+async lastCheck(signature, signature_old) {
+    try {
+        // Вычисляем SHA-256 хеш для signature_old
+        const hashOfSignatureOld = await this.sha256(signature_old);
+        // Сравниваем полученный хеш с signature
+        const isMatch = hashOfSignatureOld === signature;
+        // Возвращаем результат
+        return {
+            s: true,
+            e: null,
+            r: isMatch
+        };
+    } catch (error) {
+        // Обработка возможных ошибок при выполнении хеш-функции
+        return {
+            s: false,
+            e: error.message,
+            r: false
+        };
+    }
+}
+
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////

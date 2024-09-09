@@ -74,6 +74,9 @@
             const result = await crypto.finalAccepter(encryptionResult.r, packageResult.r.signature, keyPairResult.r.publicKey, hexStringSHA, responseResult.aes);
             console.log("Final Accepter Result:", result);
 
+            const checkResult = await crypto.lastCheck(result.r.signature, packageResult.salt);
+            console.log("Last Check Result:", checkResult);
+
         });
     </script>
     
