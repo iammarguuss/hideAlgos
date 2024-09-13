@@ -137,6 +137,22 @@
         r: true or false -> if everything works and we can go to chat
     }
 
+    ChangePassGen - generates the password
+    ChangePassGen(
+        length,     - password length  
+        Cap,        - Capital letters A-Z
+        num,        - Numbers 0-9
+        sch         - special chars
+    )
+    return {
+        s: true/false
+        e: error message or null,
+        r: {    // responce
+            pass: password itself,
+            entropy: number for entropy (if more then 100 is => good)
+        }
+    };
+    
 */
 class SteroidCrypto {
     constructor() {
@@ -754,6 +770,58 @@ async lastCheck(signature, signature_old) {
         }
         return bytes.buffer;
     }
+
+    async ChangePassGen(length, Cap, num, sch) {
+        try {
+            // Наборы символов для генерации пароля
+            const lowerCaseLetters = "abcdefghijklmnopqrstuvwxyz";
+            const upperCaseLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const numbers = "0123456789";
+            const specialCharacters = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+
+            // Формируем строку с возможными символами для пароля
+            let validChars = lowerCaseLetters;
+            if (Cap) validChars += upperCaseLetters;
+            if (num) validChars += numbers;
+            if (sch) validChars += specialCharacters;
+
+            // Генерация пароля
+            let password = "";
+            for (let i = 0; i < length; i++) {
+                const randomIndex = Math.floor(Math.random() * validChars.length);
+                password += validChars[randomIndex];
+            }
+
+            // Вычисление энтропии пароля
+            const entropy = this.calculateEntropy(validChars.length, length);
+
+            // Возвращаем результат
+            return {
+                s: true,
+                e: null,
+                r: {
+                    pass: password,
+                    entropy: entropy
+                }
+            };
+        } catch (error) {
+            // Обработка ошибок
+            return {
+                s: false,
+                e: error.message,
+                r: null
+            };
+        }
+    }
+
+    // Вспомогательный метод для расчета энтропии
+    calculateEntropy(poolSize, passLength) {
+        return Math.log2(poolSize) * passLength;
+    }
+
+
+
+
 }
 
 (() => {

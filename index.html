@@ -77,6 +77,12 @@
             const checkResult = await crypto.lastCheck(result.r.signature, packageResult.salt);
             console.log("Last Check Result:", checkResult);
 
+
+            //test password
+            const passwordInfo = await crypto.ChangePassGen(32, true, true, true);
+            console.log(passwordInfo);
+
+
         });
     </script>
     
