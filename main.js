@@ -51,7 +51,7 @@
 
     createPackage
     Creates ready to send package from the sender
-    createPackage(publicKeyBase64, hexString (signature from server in hex))
+    createPackage(publicKeyBase64, hexString (signature from server in hex), valicationPhrase, waitingTime)
         {
             s: true,                            //status true/false
             e: 0,                               // error message if exits
@@ -60,6 +60,8 @@
                 publicKey: publicKeyBase64,     // public key in base64
                 originSha: hexString,           // hexString from sever
                 signature: signature            // signature
+                valicationPhrase = false,       // add valication Phrase or not, bool  
+                waitingTime = time in munutes   // waiting Time before the connection will be closed
             }
         }
 
@@ -73,7 +75,7 @@
         r: createPackage.r
     }
 
-    responceRSA(prevalidator.r, inputstring)
+    responceRSA(prevalidator.r, inputstring, validationPhrase)
     inputString - hex 64 char original string from the server
     Prepares responce
     {
@@ -82,6 +84,7 @@
         r: {
             sha512:                         // signature in hex
             encryptedAesString:             // aes string, encrypted via public key and ready to be sent
+            Phrase:                         // Encrypted phrase for validation
         }
         aes:                                // aes string for encryption => MUST BE SAVED LOCALY
     }
@@ -100,7 +103,8 @@
     return {
         s: true/false                       status
         e: null                             error null or error message in case signatures are not the same
-        aes: hex aes                        aes the change protocol (just in case)
+        aes: hex aes                        aes the change protocol (just in case) 
+        phrase: raw text                    Phrase for valication, SHOULE BE TESTED FOR XXS
         r: {
             password: base64 string         json->string->aes enc (password from change)
             salt: base64 string             just encrypted salt with the same key
@@ -409,7 +413,7 @@ async genPair(keySize = 4096) {
     }
 }
 
-async createPackage(publicKeyBase64, hexString) {
+async createPackage(publicKeyBase64, hexString, valicationPhrase = false, waitingTime = 30) {
     try {
         // Генерация случайной соли
         const saltBytes = crypto.getRandomValues(new Uint8Array(32)); // 32 байта => 64 символа в hex
@@ -430,7 +434,9 @@ async createPackage(publicKeyBase64, hexString) {
             r: {
                 publicKey: publicKeyBase64,
                 originSha: hexString,
-                signature: signature
+                signature: signature,
+                valicationPhrase: valicationPhrase,
+                waitingTime: parseInt(waitingTime)                
             }
         };
     } catch (error) {
@@ -500,7 +506,7 @@ async prevalidator(receivedObj, inputString) {
     }
 }
 
-async responceRSA(validatedObj, inputString) {
+async responceRSA(validatedObj, inputString, validationPhrase) {
     try {
         // Генерация случайного AES ключа (256 бит)
         const aesKey = crypto.getRandomValues(new Uint8Array(32));
@@ -532,6 +538,9 @@ async responceRSA(validatedObj, inputString) {
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         const sha512 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
+        // Шифрование фразы
+        const encryptedPhrase = await this.validationPhraseTransfer(validationPhrase, aesKeyHex, true);
+
         // Формирование и возврат результата
         return {
             s: true,
@@ -539,7 +548,8 @@ async responceRSA(validatedObj, inputString) {
             aes: aesKeyHex,
             r: {
                 sha512: sha512,
-                encryptedAesString: encryptedAesKeyBase64
+                encryptedAesString: encryptedAesKeyBase64,
+                Phrase: encryptedPhrase 
             }
         };
     } catch (error) {
@@ -584,6 +594,8 @@ async encryptData(obj, inputString, signatureSha256, privateKeyBase64, publicKey
             throw new Error("Ошибка подписи 2");
         }
 
+        const decryptedPhrase = await this.validationPhraseTransfer(obj.Phrase, aesKeyHex, false);
+
         // Шифрование данных с использованием AES
         const encryptedPassword = await this.encryptAes256(JSON.stringify(password), decryptedAesKey);
         const encryptedSalt = await this.encryptAes256(salt, decryptedAesKey);
@@ -593,6 +605,7 @@ async encryptData(obj, inputString, signatureSha256, privateKeyBase64, publicKey
             s: true,
             e: null,
             aes: aesKeyHex,
+            phrase: decryptedPhrase,
             r: {
                 password: encryptedPassword,
                 salt: encryptedSalt
@@ -626,10 +639,7 @@ async finalAccepter(packet, signature, publicKeyBase64, hexString, aesKeyHex) {
 
         // Расшифровываем пароль
         const decryptedPasswordBase64 = packet.password;
-        console.log("Encrypted Password Base64:", decryptedPasswordBase64); // Посмотреть, что возвращается после шифрования
         const finalKey = await this.decryptAes256(decryptedPasswordBase64, aesKeyHex);
-        console.log("Decrypted Password Object:", finalKey); // Посмотреть, что возвращается после расшифровки
-
 
         // Вычисляем SHA-256 от расшифрованной соли
         const signatureFromDecryptedSalt = await this.sha256(decryptedSalt);
@@ -819,7 +829,50 @@ async lastCheck(signature, signature_old) {
         return Math.log2(poolSize) * passLength;
     }
 
+    async validationPhraseTransfer(phrase, key, encrypt = true) {
+        try {
+            const iv = crypto.getRandomValues(new Uint8Array(12)); // Инициализирующий вектор для AES
+            const keyMaterial = await crypto.subtle.importKey(
+                "raw",
+                this.hexToBuffer(key),
+                { name: "AES-GCM" },
+                false,
+                encrypt ? ["encrypt"] : ["decrypt"]
+            );
+    
+            const saltLength = 64; // Фиксированная длина соли
 
+            if (encrypt) {
+                const salt = crypto.getRandomValues(new Uint8Array(saltLength)).map(b => String.fromCharCode(b)).join('');
+                const encoder = new TextEncoder();
+                const encodedPhrase = encoder.encode(salt + phrase); // Соль добавляется в начало фразы
+                const encryptedData = await crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv },
+                    keyMaterial,
+                    encodedPhrase
+                );
+                const result = new Uint8Array(encryptedData.byteLength + iv.length);
+                result.set(new Uint8Array(encryptedData), 0);
+                result.set(iv, encryptedData.byteLength);
+                return this.arrayBufferToBase64(result);
+            } else {
+                const dataWithIv = this.base64ToArrayBuffer(phrase);
+                const iv = dataWithIv.slice(-12);
+                const encryptedData = dataWithIv.slice(0, -12);
+                const decryptedData = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv },
+                    keyMaterial,
+                    encryptedData
+                );
+                const decryptedText = new TextDecoder().decode(decryptedData.slice(saltLength)); // Удаляем соль из данных
+                return decryptedText;
+            }
+        } catch (error) {
+            console.error("Error in validationPhraseTransfer:", error);
+            return null;
+        }
+    }
+    
 
 
 }
