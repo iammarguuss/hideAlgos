@@ -51,7 +51,7 @@
 
     createPackage
     Creates ready to send package from the sender
-    createPackage(publicKeyBase64, hexString (signature from server in hex), valicationPhrase, waitingTime)
+    createPackage(publicKeyBase64, hexString (signature from server in hex), validationPhase, waitingTime)
         {
             s: true,                            //status true/false
             e: 0,                               // error message if exits
@@ -60,7 +60,7 @@
                 publicKey: publicKeyBase64,     // public key in base64
                 originSha: hexString,           // hexString from sever
                 signature: signature            // signature
-                valicationPhrase = false,       // add valication Phrase or not, bool  
+                validationPhase = false,       // add valication Phrase or not, bool  
                 waitingTime = time in munutes   // waiting Time before the connection will be closed
             }
         }
@@ -413,7 +413,7 @@ async genPair(keySize = 4096) {
     }
 }
 
-async createPackage(publicKeyBase64, hexString, valicationPhrase = false, waitingTime = 30) {
+async createPackage(publicKeyBase64, hexString, validationPhase = false, waitingTime = 30) {
     try {
         // Генерация случайной соли
         const saltBytes = crypto.getRandomValues(new Uint8Array(32)); // 32 байта => 64 символа в hex
@@ -435,7 +435,7 @@ async createPackage(publicKeyBase64, hexString, valicationPhrase = false, waitin
                 publicKey: publicKeyBase64,
                 originSha: hexString,
                 signature: signature,
-                valicationPhrase: valicationPhrase,
+                validationPhase: validationPhase,
                 waitingTime: parseInt(waitingTime)                
             }
         };
